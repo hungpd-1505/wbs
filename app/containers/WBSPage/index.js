@@ -53,10 +53,26 @@ class WBSPage extends React.PureComponent {
 				index: 0,
 				subject: 'XXX',
 				mh: {
-					implement: 0,
-					create_test_case: 0,
-					execute_test: 0,
-					fix_bug: 0,
+					implement: {
+						pic: '',
+						status: '',
+						value: 0
+					},
+					create_test_case: {
+						pic: '',
+						status: '',
+						value: 0
+					},
+					execute_test: {
+						pic: '',
+						status: '',
+						value: 0
+					},
+					fix_bug: {
+						pic: '',
+						status: '',
+						value: 0
+					},
 				},
 			},
 			colHeaderWidth: [
@@ -70,6 +86,8 @@ class WBSPage extends React.PureComponent {
 
 			// from storage
 			sync_storage: {
+				max_dev_hour_in_day: 24,
+				max_qa_hour_in_day: 2400,
 				fromDate: moment().format("YYYY-MM-01"),
 				toDate: moment().add(1, 'months').format("YYYY-MM-DD"),
 				totalDev: 18,
@@ -145,6 +163,8 @@ class WBSPage extends React.PureComponent {
 			const dateObj = moment(d)
 
 			let { totalDev, totalQa } = this.state.sync_storage
+			totalDev = totalDev * 8
+			totalQa = totalQa * 8
 
 			if (!this.isHoliday(dateObj)) {
 				const data = {}
@@ -155,33 +175,23 @@ class WBSPage extends React.PureComponent {
 					let create_test_case = 0
 					let execute_test = 0
 
-					// // dev
-					// implement
+					// dev: implement
 					if (totalDev > 0) {
-						if (wbs_data[i].mh.implement.value >= totalDev) {
-							implement = totalDev
+						const factor = _.min([totalDev, this.state.sync_storage.max_dev_hour_in_day])
+						if (wbs_data[i].mh.implement.value >= factor) {
+							implement = factor
 						} else {
 							implement = wbs_data[i].mh.implement.value
 						}
 						wbs_data[i].mh.implement.value -= implement
 						totalDev -= implement
 					}
-					// fix_bug
-					if (totalDev > 0) {
-						if (wbs_data[i].mh.fix_bug.value >= totalDev) {
-							fix_bug = totalDev
-						} else {
-							fix_bug = wbs_data[i].mh.fix_bug.value
-						}
-						wbs_data[i].mh.fix_bug.value -= fix_bug
-						totalDev -= fix_bug
-					}
 
-					// // qa
-					// create test case
-					if (totalQa > 0 && implement > 0) {
-						if (wbs_data[i].mh.create_test_case.value >= totalQa) {
-							create_test_case = totalQa
+					// qa: create test case
+					if (totalQa > 0) {
+						const factor = _.min([totalQa, this.state.sync_storage.max_qa_hour_in_day])
+						if (wbs_data[i].mh.create_test_case.value >= factor) {
+							create_test_case = factor
 						} else {
 							create_test_case = wbs_data[i].mh.create_test_case.value
 						}
@@ -189,15 +199,28 @@ class WBSPage extends React.PureComponent {
 						totalQa -= create_test_case
 					}
 
-					// execute test
-					if (totalQa > 0 && implement > 0) {
-						if (wbs_data[i].mh.execute_test.value >= totalQa) {
-							execute_test = totalQa
+					// qa: execute test
+					if (totalQa > 0 && wbs_data[i].mh.implement.value == 0 && wbs_data[i].mh.create_test_case.value == 0) {
+						const factor = _.min([totalQa, this.state.sync_storage.max_qa_hour_in_day])
+						if (wbs_data[i].mh.execute_test.value >= factor) {
+							execute_test = factor
 						} else {
 							execute_test = wbs_data[i].mh.execute_test.value
 						}
 						wbs_data[i].mh.execute_test.value -= execute_test
 						totalQa -= execute_test
+					}
+
+					// dev: fix_bug
+					if (totalDev > 0 && wbs_data[i].mh.execute_test.value == 0) {
+						const factor = _.min([totalDev, this.state.sync_storage.max_dev_hour_in_day])
+						if (wbs_data[i].mh.fix_bug.value >= factor) {
+							fix_bug = factor
+						} else {
+							fix_bug = wbs_data[i].mh.fix_bug.value
+						}
+						wbs_data[i].mh.fix_bug.value -= fix_bug
+						totalDev -= fix_bug
 					}
 
 					data[wbs_data[i].id] = {
@@ -391,7 +414,7 @@ class WBSPage extends React.PureComponent {
 							classes.push('bg-light')
 						}
 
-						const cost = _.sumBy(_.values(_.get(data_norm, `${d}`, [])), (o) => _.toNumber(o.mh.implement) + _.toNumber(o.mh.fix_bug))
+						const cost = _.sumBy(_.values(_.get(data_norm, `${d}`, [])), (o) => (_.toNumber(o.mh.implement.value) + _.toNumber(o.mh.fix_bug.value)) / 8)
 						return (
 							<div className={classes.join(' ')}>{cost || ''}</div>
 						)
@@ -412,7 +435,7 @@ class WBSPage extends React.PureComponent {
 							classes.push('bg-light')
 						}
 
-						const cost = _.sumBy(_.values(_.get(data_norm, `${d}`, [])), (o) => _.toNumber(o.mh.create_test_case) + _.toNumber(o.mh.execute_test))
+						const cost = _.sumBy(_.values(_.get(data_norm, `${d}`, [])), (o) => (_.toNumber(o.mh.create_test_case.value) + _.toNumber(o.mh.execute_test.value)) / 8)
 						return (
 							<div className={classes.join(' ')}>{cost || ''}</div>
 						)
@@ -573,6 +596,7 @@ class WBSPage extends React.PureComponent {
 									})
 									this.auto_sync()
 								}}>
+								<option value=""></option>
 								{
 									_.map(this.state.sync_storage.members || [], m => {
 										return (
@@ -604,7 +628,7 @@ class WBSPage extends React.PureComponent {
 								}}
 							/>
 						</div>
-						<div className="col border align-items-center d-flex" style={{ maxWidth: this.state.colHeaderWidth[3] }}>{_.round(cost / 160, 2) || ''}</div>
+						<div className="col border align-items-center d-flex" style={{ maxWidth: this.state.colHeaderWidth[3] }}>{_.round(cost / 8, 1) || ''}</div>
 						<div className="col border align-items-center d-flex px-0" style={{ maxWidth: this.state.colHeaderWidth[4] }}>
 							<select
 								className="border-0 text-sm"
@@ -664,7 +688,7 @@ class WBSPage extends React.PureComponent {
 						}
 						return (
 							<div className={classes.join(' ')}>
-								{cost || ''}
+								{_.round(cost / 8, 1) || ''}
 							</div>
 						)
 					})
@@ -745,13 +769,57 @@ class WBSPage extends React.PureComponent {
 							<button type="button" className="btn-close text-reset" data-bs-dismiss="offcanvas" aria-label="Close"></button>
 						</div>
 						<div className="offcanvas-body">
-							<div className="fs-6">Backup & Restore</div>
+							<div className="fs-6 mb-1">General</div>
+							<div>
+								<div className="row g-3 align-items-center">
+									<div className="col-auto">
+										<label className="col-form-label" style={{ width: 80 }}>Dev hours/day</label>
+									</div>
+									<div className="col-auto">
+										<input type="text"
+											className="form-control form-control-sm"
+											value={this.state.sync_storage.max_dev_hour_in_day}
+											onChange={e => {
+												this.setState({
+													sync_storage: {
+														...this.state.sync_storage,
+														max_dev_hour_in_day: e.target.value
+													}
+												})
+												this.auto_sync()
+											}}
+										/>
+									</div>
+								</div>
+								<div className="row g-3 align-items-center mt-1">
+									<div className="col-auto">
+										<label className="col-form-label" style={{ width: 80 }}>QA hours/day</label>
+									</div>
+									<div className="col-auto">
+										<input type="text"
+											className="form-control form-control-sm"
+											value={this.state.sync_storage.max_qa_hour_in_day}
+											onChange={e => {
+												this.setState({
+													sync_storage: {
+														...this.state.sync_storage,
+														max_qa_hour_in_day: e.target.value
+													}
+												})
+												this.auto_sync()
+											}}
+										/>
+									</div>
+								</div>
+							</div>
+
+							<div className="fs-6 mt-4 mb-1">Backup & Restore</div>
 
 							<div>
 								<button
 									className="btn btn-sm btn-primary"
 									onClick={e => {
-										fileDownloader(JSON.stringify(this.state.sync_storage), 'wbs.json', 'application/json')
+										fileDownloader(JSON.stringify(this.state.sync_storage), moment().format('YYYYMMDD') + '_wbs.json', 'application/json')
 									}}
 								>
 									Backup
@@ -782,7 +850,8 @@ class WBSPage extends React.PureComponent {
 									Restore
 								</button>
 							</div>
-							<div className="fs-6 mt-4">
+
+							<div className="fs-6 mt-4 mb-1">
 								Members
 									<a
 									href="#add-member"
