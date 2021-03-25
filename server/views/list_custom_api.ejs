@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>List custom APIs</title>
+    <style>
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        table td {
+            border: solid 1px grey;
+        }
+    </style>
+</head>
+<body>
+    <table>
+        <tbody>
+            <tr>
+                <th>STT</th>
+                <th>Path</th>
+                <th>Method</th>
+                <th>Status</th>
+                <th>Actions</th>
+            </tr>
+            <%Object.keys(apis).forEach(function (id, index) {
+              const api = apis[id];
+            %>
+                <tr>
+                    <td><%=index%></td>
+                    <td><%=api.path%></td>
+                    <td><%=api.method%></td>
+                    <td><%=api.status%></td>
+                    <td>
+                        <a href="/custom/api/edit?id=<%=encodeURIComponent(id)%>"><button>Edit</button></a>
+                        <button id="delete-btn" onclick="deleteCustomApi('<%=api.path%>', '<%=api.method%>')">Delete</button>
+                    </td>
+                </tr>
+            <%})%>
+        </tbody>
+    </table>
+
+    <a href="/custom/api">
+        <button>Add new</button>
+    </a>
+</body>
+
+<script src="/js/axios.min.js"></script>
+
+<script>
+    function deleteCustomApi(path, method) {
+      axios.delete('/custom/api?id=' + encodeURIComponent(path + '@@' + method))
+        .then(function () {
+          alert('Delete success!')
+          window.location.reload()
+        })
+        .catch(function (error) {
+          alert('Delete fail!')
+        })
+    }
+</script>
+
+</html>

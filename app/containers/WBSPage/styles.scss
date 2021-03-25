@@ -1,0 +1,42 @@
+.wbs-page{
+	font-size: 0.65em;
+    .wbs_row{
+        height: 28px;
+        max-height: 28px;
+        overflow: hidden;
+        .col{
+            & + .col{
+                margin-left: -1px
+            }
+        }
+        .wbs_col{
+            padding: 0;
+            margin: 0;
+            width: 28px;
+            max-width: 28px;
+            text-align: center;
+            height: 28px;
+            max-height: 28px;
+            line-height: 28px;
+        }
+        & + .wbs_row {
+            margin-top: -1px;
+        }
+    }
+    .text-input{
+        border: 0;
+        width: 100%;
+        height: 100%;
+    }
+    .btn-up{
+        margin-right: 2px;
+    }
+    .btn-up, .btn-down{
+        border: 1px solid #ccc;
+        width: 16px; height: 16px;
+        text-decoration: none;
+        text-align: center;
+        vertical-align: middle;
+        display: inline-block;
+    }
+}

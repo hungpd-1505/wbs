@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Custom APIs result</title>
+    <style>
+        body {
+            margin: 20px 300px;
+        }
+        .field_wrapp {
+            display: flex;
+            margin: 10px 0;
+        }
+
+        .field_title {
+            margin-right: 10px;
+        }
+
+        .field_content {
+            flex: 1 auto;
+        }
+
+        .field_content input {
+            width: 100%;
+        }
+
+        textarea {
+            width: 100%;
+            min-height: 400px;
+        }
+    </style>
+</head>
+<body>
+    <%api = typeof api === 'undefined' ? {} : api%>
+    <div class="field_wrapp">
+        <div class="field_title">Path:</div>
+        <div class="field_content">
+            <input type="text" value="<%=api.path%>" id="path">
+        </div>
+    </div>
+    <div class="field_wrapp">
+        <div class="field_title">Method:</div>
+        <div>
+            <select name="method" id="method">
+                <option value="GET" <%=api.method === 'GET' ? 'selected' : ''%>>GET</option>
+                <option value="POST" <%=api.method === 'POST' ? 'selected' : ''%>>POST</option>
+                <option value="PUT" <%=api.method === 'PUT' ? 'selected' : ''%>>PUT</option>
+                <option value="DELETE" <%=api.method === 'DELETE' ? 'selected' : ''%>>DELETE</option>
+            </select>
+        </div>
+    </div>
+    <div>
+        <p><strong>Expect Result:</strong></p>
+        <div class="field_wrapp">
+            <div class="field_title">Status:</div>
+            <select name="status" id="status">
+                <%['200', '400', '405', '401', '403', '404', '415', '500', '502', '503', '303', '302'].forEach(function (status) {%>
+                    <option value="<%=status%>" <%=api.status === status ? 'selected' : ''%>><%=status%></option>
+                <%})%>
+            </select>
+        </div>
+        <div>
+            <p>Data:</p>
+            <textarea id="data"><%=JSON.stringify(api.data)%></textarea>
+        </div>
+    </div>
+
+    <button id="submit" onclick="submit()">Gửi</button>
+    <a href="/custom/api/list">
+        <button>Back to list</button>
+    </a>
+</body>
+
+<script src="/js/jquery-3.3.1.min.js"></script>
+<script src="/js/axios.min.js"></script>
+
+<script>
+    function submit() {
+      const info = {
+        path: $('#path').val(),
+        method: $('#method').val(),
+        status: $('#status').val(),
+        data: $('#data').val()
+      }
+      axios.post('/custom/api', info)
+        .then(function () {
+          alert('update success!')
+        })
+        .catch(function (error) {
+          console.log(error)
+          alert('update fail!')
+        })
+    }
+</script>
+
+</html>

@@ -1,0 +1,17 @@
+version: "3.3"
+
+services:
+  wbs:
+    container_name: wbs
+    build: 
+      context: ./
+      dockerfile: Dockerfile
+    # restart: always
+    volumes:
+      - ./app:/usr/local/app/app:Z
+      - ./build:/usr/local/app/build
+      - ./internals:/usr/local/app/internals
+      - ./server:/usr/local/app/server
+      - ./share/:/share/
+    ports:
+    - "3000:3000"
