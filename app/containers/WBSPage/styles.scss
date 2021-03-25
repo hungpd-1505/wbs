@@ -27,16 +27,46 @@
         border: 0;
         width: 100%;
         height: 100%;
+        outline: none;
+    }
+    .calendar-input{
+        border: 0;
+        outline: none;
+        padding: 4px;
     }
     .btn-up{
         margin-right: 2px;
     }
-    .btn-up, .btn-down{
+    .btn-add, .btn-up, .btn-down{
         border: 1px solid #ccc;
         width: 16px; height: 16px;
         text-decoration: none;
         text-align: center;
         vertical-align: middle;
         display: inline-block;
+    }
+    .editable-icon{
+        position: relative;
+        &::after{
+            position: absolute;
+            top: 2px;
+            right: 2px;
+            font-size: 8px;
+            content: "\f4c8";
+            display: inline-block;
+            font-family: bootstrap-icons !important;
+            font-style: normal;
+            font-weight: normal !important;
+            font-variant: normal;
+            text-transform: none;
+            line-height: 1;
+            vertical-align: -.125em;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            z-index: 1;
+        }
+    }
+    .text-sm{
+        font-size: 0.6em;
     }
 }
