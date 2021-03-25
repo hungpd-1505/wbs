@@ -7,9 +7,8 @@ import { ScrollSync, ScrollSyncPane } from 'react-scroll-sync'
 import DatePicker from "react-datepicker"
 import "react-datepicker/dist/react-datepicker.css"
 
-import Confirm from 'components/Confirm'
+import Modal from 'react-modal'
 import { APILoading } from 'components/LoadingIndicator'
-import Meta from 'components/Header/Meta'
 
 // Redux
 import { connect } from 'react-redux'
@@ -26,6 +25,8 @@ class WBSPage extends React.PureComponent {
 		super(props)
 
 		this.state = {
+			showTicketConfig: false,
+			dialogData: {},
 			costItem: [
 				{
 					title: 'Implement',
@@ -80,14 +81,14 @@ class WBSPage extends React.PureComponent {
 				50, // Ver
 				50, // MH
 				50, // MD
-				60, // Status
+				64, // Status
 				60, // Team
 			],
-
+			collapseList: [],
 			// from storage
 			sync_storage: {
-				max_dev_hour_in_day: 24,
-				max_qa_hour_in_day: 2400,
+				max_dev_in_day: 3,
+				max_qa_in_day: 10,
 				fromDate: moment().format("YYYY-MM-01"),
 				toDate: moment().add(1, 'months').format("YYYY-MM-DD"),
 				totalDev: 18,
@@ -177,7 +178,11 @@ class WBSPage extends React.PureComponent {
 
 					// dev: implement
 					if (totalDev > 0) {
-						const factor = _.min([totalDev, this.state.sync_storage.max_dev_hour_in_day])
+						let compareFactor = this.state.sync_storage.max_dev_in_day * 8
+						if (wbs_data[i].max_dev_in_day && wbs_data[i].max_dev_in_day > 0) {
+							compareFactor = wbs_data[i].max_dev_in_day * 8
+						}
+						const factor = _.min([totalDev, compareFactor])
 						if (wbs_data[i].mh.implement.value >= factor) {
 							implement = factor
 						} else {
@@ -189,7 +194,11 @@ class WBSPage extends React.PureComponent {
 
 					// qa: create test case
 					if (totalQa > 0) {
-						const factor = _.min([totalQa, this.state.sync_storage.max_qa_hour_in_day])
+						let compareFactor = this.state.sync_storage.max_qa_in_day * 8
+						if (wbs_data[i].max_qa_in_day && wbs_data[i].max_qa_in_day > 0) {
+							compareFactor = wbs_data[i].max_qa_in_day * 8
+						}
+						const factor = _.min([totalQa, compareFactor])
 						if (wbs_data[i].mh.create_test_case.value >= factor) {
 							create_test_case = factor
 						} else {
@@ -201,7 +210,11 @@ class WBSPage extends React.PureComponent {
 
 					// qa: execute test
 					if (totalQa > 0 && wbs_data[i].mh.implement.value == 0 && wbs_data[i].mh.create_test_case.value == 0) {
-						const factor = _.min([totalQa, this.state.sync_storage.max_qa_hour_in_day])
+						let compareFactor = this.state.sync_storage.max_qa_in_day * 8
+						if (wbs_data[i].max_qa_in_day && wbs_data[i].max_qa_in_day > 0) {
+							compareFactor = wbs_data[i].max_qa_in_day * 8
+						}
+						const factor = _.min([totalQa, compareFactor])
 						if (wbs_data[i].mh.execute_test.value >= factor) {
 							execute_test = factor
 						} else {
@@ -209,18 +222,22 @@ class WBSPage extends React.PureComponent {
 						}
 						wbs_data[i].mh.execute_test.value -= execute_test
 						totalQa -= execute_test
-					}
 
-					// dev: fix_bug
-					if (totalDev > 0 && wbs_data[i].mh.execute_test.value == 0) {
-						const factor = _.min([totalDev, this.state.sync_storage.max_dev_hour_in_day])
-						if (wbs_data[i].mh.fix_bug.value >= factor) {
-							fix_bug = factor
-						} else {
-							fix_bug = wbs_data[i].mh.fix_bug.value
+						// dev: fix_bug
+						if (totalDev > 0) {
+							let compareFactor = this.state.sync_storage.max_dev_in_day * 8
+							if (wbs_data[i].max_dev_in_day && wbs_data[i].max_dev_in_day > 0) {
+								compareFactor = wbs_data[i].max_dev_in_day * 8
+							}
+							const factor = _.min([totalDev, compareFactor])
+							if (wbs_data[i].mh.fix_bug.value >= factor) {
+								fix_bug = factor
+							} else {
+								fix_bug = wbs_data[i].mh.fix_bug.value
+							}
+							wbs_data[i].mh.fix_bug.value -= fix_bug
+							totalDev -= fix_bug
 						}
-						wbs_data[i].mh.fix_bug.value -= fix_bug
-						totalDev -= fix_bug
 					}
 
 					data[wbs_data[i].id] = {
@@ -252,13 +269,42 @@ class WBSPage extends React.PureComponent {
 		return data_norm
 	}
 
+	getTicketImplementRange(data_norm) {
+		// check start date & end date of ticket
+		const ticketImplementRange = {}
+		_.map(data_norm, (tickets, k) => {
+			_.forEach(tickets, (o, id) => {
+				if (
+					o.mh.implement.value ||
+					o.mh.fix_bug.value ||
+					o.mh.create_test_case.value ||
+					o.mh.execute_test.value
+				) {
+					if (id in ticketImplementRange) {
+						ticketImplementRange[id]['endDate'] = k
+					} else {
+						ticketImplementRange[id] = {
+							startDate: k,
+							endDate: k
+						}
+					}
+				}
+			})
+		})
+
+		return ticketImplementRange
+	}
+
 	auto_sync() {
 		setTimeout(() => {
 			this.props.syncStorage('SYNC_STORAGE', this.state.sync_storage)
 		}, 200)
 	}
 
-	renderWbsHeaderLeft() {
+	renderHeaderLeft() {
+		const listTicketId = _.map(this.state.sync_storage.wbs_data, it => it.id)
+		const isAllCollapsed = _.difference(listTicketId, this.state.collapseList).length === 0
+
 		return [
 			<div className="row">
 				<div className="col">
@@ -272,7 +318,7 @@ class WBSPage extends React.PureComponent {
 					<table className="table table-bordered table-sm m-0">
 						<tbody>
 							<tr>
-								<td className="bg-light bg-gradient" width={40}>Start</td>
+								<td className="bg-light bg-gradient" width={50}>Start</td>
 								<td className="p-0">
 									<div className="d-flex justify-content-between align-items-center">
 										<DatePicker
@@ -346,7 +392,7 @@ class WBSPage extends React.PureComponent {
 					</div>
 					<div className="row wbs_row">
 						<div className="col align-items-center d-flex justify-content-end">QA</div>
-						<div className="col p-0 border border-bottom-0 editable-icon" style={{ maxWidth: 40 }}>
+						<div className="col p-0 border editable-icon" style={{ maxWidth: 40 }}>
 							<input
 								type="text"
 								className="text-input text-center"
@@ -365,8 +411,27 @@ class WBSPage extends React.PureComponent {
 					</div>
 				</div>
 			</div>,
-			<div className="row wbs_row bg-light bg-gradient">
-				<div className="col border align-items-center justify-content-center d-flex">
+			<div className="row wbs_row border-end"></div>,
+			<div className="row wbs_row bg-light bg-gradient fw-bold">
+				<div className="col border align-items-center justify-content-between d-flex">
+					<button
+						className="btn btn-sm p-0 btn-light"
+						onClick={e => {
+							if (isAllCollapsed) {
+								// expand	
+								this.setState({
+									collapseList: []
+								})
+							} else {
+								// collapse
+								this.setState({
+									collapseList: listTicketId
+								})
+							}
+						}}
+					>
+						<i className={`bi bi-arrows-${isAllCollapsed ? 'expand' : 'collapse'}`}></i>
+					</button>
 					Task
 						<a
 						href="#add"
@@ -398,7 +463,8 @@ class WBSPage extends React.PureComponent {
 		]
 	}
 
-	renderWbsHeaderRight(dateRange, data_norm) {
+	renderHeaderRight(dateRange, data_norm) {
+		let currentMonth = ''
 		return [
 			<div className="row wbs_row">
 				{
@@ -444,10 +510,35 @@ class WBSPage extends React.PureComponent {
 			</div>,
 			<div className="row wbs_row">
 				{
+					// DATE MONTH HEADER
+					_.map(dateRange, (d) => {
+						const dateObj = moment(d)
+						const month = dateObj.format('YYYY-MM')
+						if (currentMonth !== month) {
+							currentMonth = month
+							const classes = ['col', 'fw-bold', 'd-flex', 'align-items-center', 'ps-1', 'border', 'bg-light', 'bg-gradient']
+							const numberDayInMonth = _.sumBy(dateRange, o => {
+								return currentMonth == moment(o).format('YYYY-MM') ? 1 : 0
+							})
+							return (
+								<div className={classes.join(' ')} style={{
+									width: (numberDayInMonth - 1) * 28,
+									maxWidth: (numberDayInMonth - 1) * 28,
+									height: 28,
+									maxHeight: 28,
+									marginLeft: -1,
+								}}>{currentMonth}</div>
+							)
+						}
+						return null
+					})
+				}
+			</div>,
+			<div className="row wbs_row">
+				{
 					// DATE HEADER
 					_.map(dateRange, (d) => {
 						const dateObj = moment(d)
-
 						const classes = ['col', 'wbs_col', 'border']
 
 						if (this.isToday(dateObj)) {
@@ -465,10 +556,29 @@ class WBSPage extends React.PureComponent {
 		]
 	}
 
-	renderWbsDataLeft(wbs_data) {
-		return _.map(wbs_data, (ticket) => [
-			<div className="row wbs_row">
-				<div className="col border d-flex flex-row pe-0 bg-primary align-items-center editable-icon" title={ticket.subject}>
+	renderDataLeft(wbs_data) {
+		return _.map(wbs_data, (ticket, idx) => [
+			<div className="row wbs_row" style={{ marginTop: idx > 0 ? - 1 : 0 }}>
+				<div className="col border d-flex flex-row pe-0 align-items-center editable-icon" title={ticket.subject}>
+					<button
+						className="btn btn-sm p-0 btn-light"
+						onClick={e => {
+							if (_.includes(this.state.collapseList, ticket.id)) {
+								this.setState({
+									collapseList: _.filter(this.state.collapseList, o => o != ticket.id)
+								})
+							} else {
+								this.setState({
+									collapseList: [
+										...this.state.collapseList,
+										ticket.id
+									]
+								})
+							}
+						}}
+					>
+						<i className={`bi bi-arrows-${_.includes(this.state.collapseList, ticket.id) ? 'expand' : 'collapse'}`}></i>
+					</button>
 					<input
 						type="text"
 						className="text-input text-center bg-light"
@@ -490,9 +600,20 @@ class WBSPage extends React.PureComponent {
 							this.auto_sync()
 						}}
 					/>
+					<button
+						className="btn btn-sm p-0 btn-light"
+						onClick={e => {
+							this.setState({
+								showTicketConfig: true,
+								dialogData: ticket
+							})
+						}}
+					>
+						<i className="bi bi-gear"></i>
+					</button>
 					<input
 						type="text"
-						className="text-input"
+						className="text-input pe-3"
 						value={ticket.subject}
 						onChange={(e) => {
 							const newData = _.map(_.cloneDeep(this.state.sync_storage.wbs_data), (o) => {
@@ -514,7 +635,7 @@ class WBSPage extends React.PureComponent {
 				<div className="col border align-items-center d-flex" style={{ maxWidth: this.state.colHeaderWidth[5] }}>
 					<a
 						href="#up"
-						className="btn btn-sm p-0 text-success"
+						className={`btn btn-sm p-0 text-success ${idx == 0 ? 'invisible' : ''}`}
 						onClick={(e) => {
 							e.preventDefault()
 							const currentIndex = ticket.index
@@ -540,7 +661,7 @@ class WBSPage extends React.PureComponent {
 					><i className="bi bi-arrow-up-circle"></i></a>
 					<a
 						href="#down"
-						className="btn btn-sm p-0 ms-1 text-danger"
+						className={`btn btn-sm p-0 ms-1 text-danger ${idx == _.size(wbs_data) - 1 ? 'invisible' : ''}`}
 						onClick={(e) => {
 							e.preventDefault()
 							const currentIndex = ticket.index
@@ -565,17 +686,18 @@ class WBSPage extends React.PureComponent {
 						}}
 					><i className="bi bi-arrow-down-circle"></i></a>
 				</div>
-			</div>,
+			</div >,
+
 			_.map(this.state.costItem, (it) => {
 				const pic = _.get(ticket, `mh.${it.key}.pic`)
 				const status = _.get(ticket, `mh.${it.key}.status`)
 				const cost = _.get(ticket, `mh.${it.key}.value`)
 				return (
-					<div className="row wbs_row">
+					<div className={`row wbs_row ${_.includes(this.state.collapseList, ticket.id) ? 'collapse' : ''}`}>
 						<div className="col border align-items-center d-flex justify-content-end">{it.title}</div>
 						<div className="col border align-items-center d-flex px-0" style={{ maxWidth: this.state.colHeaderWidth[0] }}>
 							<select
-								className="border-0 text-sm"
+								className="border-0 text-sm select"
 								style={{
 									width: this.state.colHeaderWidth[0]
 								}}
@@ -631,7 +753,7 @@ class WBSPage extends React.PureComponent {
 						<div className="col border align-items-center d-flex" style={{ maxWidth: this.state.colHeaderWidth[3] }}>{_.round(cost / 8, 1) || ''}</div>
 						<div className="col border align-items-center d-flex px-0" style={{ maxWidth: this.state.colHeaderWidth[4] }}>
 							<select
-								className="border-0 text-sm"
+								className="border-0 text-sm select"
 								style={{
 									width: this.state.colHeaderWidth[0]
 								}}
@@ -661,40 +783,361 @@ class WBSPage extends React.PureComponent {
 						<div className="col border align-items-center d-flex" style={{ maxWidth: this.state.colHeaderWidth[5] }}>{_.upperCase(it.team)}</div>
 					</div>
 				)
-			}),
+			})
 		])
 	}
 
-	renderWbsDataRight(dateRange, wbs_data, data_norm) {
-		return _.map(wbs_data, (ticket) => _.map(_.concat([''], this.state.costItem), (it) => (
-			<div className="row wbs_row">
-				{
-					_.map(dateRange, (d) => {
-						const dateObj = moment(d)
-						const classes = ['col', 'wbs_col', 'border']
-						if (this.isToday(dateObj)) {
-							classes.push('bg-warning')
-						} else if (this.isHoliday(dateObj)) {
-							classes.push('bg-light')
-						}
-						const cost = _.get(data_norm, `${d}.${ticket.id}.mh.${it.key}.value`)
-						if (cost) {
-							const team = _.toLower(it.team)
-							if (team == 'dev') {
-								classes.push('bg-success')
-							} else if (team == 'qa') {
-								classes.push('bg-info')
+	renderDataRight(dateRange, wbs_data, data_norm) {
+		const ticketImplementRange = this.getTicketImplementRange(data_norm)
+
+		return _.map(wbs_data, (ticket) => _.map(_.concat(['MAIN_LINE'], this.state.costItem), (it) => {
+			const topClass = ['row', 'wbs_row']
+			if (it !== 'MAIN_LINE' && _.includes(this.state.collapseList, ticket.id)) {
+				topClass.push('collapse')
+			}
+
+			return (
+				<div className={topClass.join(' ')}>
+					{
+						_.map(dateRange, (d) => {
+							const dateObj = moment(d)
+							const classes = ['col', 'wbs_col', 'border']
+							if (this.isToday(dateObj)) {
+								classes.push('bg-warning')
+							} else if (this.isHoliday(dateObj)) {
+								classes.push('bg-light')
 							}
-						}
-						return (
-							<div className={classes.join(' ')}>
-								{_.round(cost / 8, 1) || ''}
+							const cost = _.get(data_norm, `${d}.${ticket.id}.mh.${it.key}.value`)
+							if (cost) {
+								const team = _.toLower(it.team)
+								if (team == 'dev') {
+									classes.push('bg-success')
+								} else if (team == 'qa') {
+									classes.push('bg-info')
+								}
+							}
+
+							let displayData = _.round(cost / 8, 1) || ''
+							if (it == 'MAIN_LINE') {
+								const currentDate = dateObj.format('YYYY-MM-DD')
+								const startDate = _.get(ticketImplementRange, `${ticket.id}.startDate`)
+								const endDate = _.get(ticketImplementRange, `${ticket.id}.endDate`)
+								if (endDate == currentDate) {
+									displayData = '★'
+									classes.push('text-danger')
+								} else if (startDate == currentDate) {
+									displayData = '●'
+									classes.push('text-primary')
+								}
+								if (startDate < currentDate && currentDate < endDate) {
+									classes.push('mid-line')
+								}
+							}
+							return (
+								<div className={classes.join(' ')}>
+									{displayData}
+								</div>
+							)
+						})
+					}
+				</div>
+			)
+		}))
+	}
+
+	renderSidebar() {
+		return [
+			<button
+				className="btn btn-lg btn-warning position-fixed bottom-0 start-0"
+				data-bs-toggle="offcanvas"
+				data-bs-target="#sidebar"
+			>
+				<i className="bi bi-gear"
+					data-bs-toggle="offcanvas"
+					data-bs-target="#sidebar"
+				></i>
+			</button>
+			,
+			<div className="offcanvas offcanvas-start" tabindex="-1" id="sidebar" aria-labelledby="sidebarLabel">
+				<div className="offcanvas-header">
+					<h5 className="offcanvas-title" id="sidebarLabel">Setting</h5>
+					<button type="button" className="btn-close text-reset" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+				</div>
+				<div className="offcanvas-body">
+					<div className="fs-6 mb-1">General</div>
+					<div>
+						<div className="row g-3 align-items-center">
+							<div className="col-auto">
+								<label className="col-form-label" style={{ width: 80 }}>Max Dev/day</label>
 							</div>
-						)
-					})
-				}
+							<div className="col-auto">
+								<input type="text"
+									className="form-control form-control-sm"
+									value={this.state.sync_storage.max_dev_in_day}
+									onChange={e => {
+										this.setState({
+											sync_storage: {
+												...this.state.sync_storage,
+												max_dev_in_day: e.target.value
+											}
+										})
+										this.auto_sync()
+									}}
+								/>
+							</div>
+						</div>
+						<div className="row g-3 align-items-center mt-1">
+							<div className="col-auto">
+								<label className="col-form-label" style={{ width: 80 }}>Max QA/day</label>
+							</div>
+							<div className="col-auto">
+								<input type="text"
+									className="form-control form-control-sm"
+									value={this.state.sync_storage.max_qa_in_day}
+									onChange={e => {
+										this.setState({
+											sync_storage: {
+												...this.state.sync_storage,
+												max_qa_in_day: e.target.value
+											}
+										})
+										this.auto_sync()
+									}}
+								/>
+							</div>
+						</div>
+					</div>
+
+					<div className="fs-6 mt-4 mb-1">Backup & Import</div>
+
+					<div>
+						<button
+							className="btn btn-sm btn-primary"
+							onClick={e => {
+								fileDownloader(JSON.stringify(this.state.sync_storage), moment().format('YYYYMMDD') + '_wbs.json', 'application/json')
+							}}
+						>Backup</button>
+
+						<input id="selectFile" type="file" hidden onChange={e => {
+							const fileReader = new FileReader();
+							fileReader.readAsText(e.target.files[0], "UTF-8");
+							fileReader.onload = e => {
+								try {
+									this.setState({
+										sync_storage: JSON.parse(e.target.result)
+									})
+									alert("Restore successfully!")
+									this.auto_sync()
+								} catch (e) {
+									alert("System Error!")
+									console.error(e)
+								}
+							}
+						}} />
+						<button
+							className="btn btn-sm btn-info ms-4"
+							onClick={e => {
+								document.getElementById("selectFile").click()
+							}}
+						>Import</button>
+					</div>
+
+					<div className="fs-6 mt-4 mb-1">
+						Members
+									<a
+							href="#add-member"
+							className="btn p-0 ms-2 text-primary"
+							title="Add new member"
+							onClick={e => {
+								e.preventDefault()
+								const members = this.state.sync_storage.members || []
+								members.push({
+									name: '',
+									team: 'dev'
+								})
+								this.setState({
+									sync_storage: {
+										...this.state.sync_storage,
+										members
+									}
+								})
+								this.auto_sync()
+							}}
+						><i className="bi bi-plus-circle-fill"></i></a>
+					</div>
+
+					<table className="table table-bordered table-sm table-hover caption-top">
+						<thead>
+							<tr>
+								<th width={20}>#.</th>
+								<th width={40}>Team</th>
+								<th>Name</th>
+								<th width={40}></th>
+							</tr>
+						</thead>
+						<tbody>
+							{
+								_.map(this.state.sync_storage.members || [], (it, idx) => {
+									return (
+										<tr>
+											<td>{idx + 1}</td>
+											<td>
+												<select
+													className="border select"
+													value={it.team}
+													onChange={e => {
+														const members = _.map(_.cloneDeep(this.state.sync_storage.members), (o, oix) => {
+															if (oix == idx) {
+																o.team = e.target.value
+															}
+															return o
+														})
+														this.setState({
+															sync_storage: {
+																...this.state.sync_storage,
+																members
+															}
+														})
+														this.auto_sync()
+													}}>
+													<option value="dev">DEV</option>
+													<option value="qa">QA</option>
+												</select>
+											</td>
+											<td>
+												<input type="text"
+													className="text-input p-1"
+													value={it.name}
+													onChange={e => {
+														const members = _.map(_.cloneDeep(this.state.sync_storage.members), (o, oix) => {
+															if (oix == idx) {
+																o.name = e.target.value
+															}
+															return o
+														})
+														this.setState({
+															sync_storage: {
+																...this.state.sync_storage,
+																members
+															}
+														})
+														this.auto_sync()
+													}}
+												/>
+											</td>
+											<td className="text-center">
+												<button
+													className="btn btn-sm p-0 text-danger"
+													onClick={e => {
+														const members = []
+														_.map(this.state.sync_storage.members, (o, oix) => {
+															if (oix !== idx) {
+																members.push(o)
+															}
+														})
+														this.setState({
+															sync_storage: {
+																...this.state.sync_storage,
+																members
+															}
+														})
+														this.auto_sync()
+													}}
+												>
+													<i className="bi bi-person-x"></i>
+												</button>
+											</td>
+										</tr>
+									)
+								})
+							}
+						</tbody>
+					</table>
+				</div>
 			</div>
-		)))
+			,
+			<Modal
+				className={'modal-dialog'}
+				shouldCloseOnOverlayClick={false}
+				isOpen={this.state.showTicketConfig}
+				onRequestClose={() => {
+					this.setState({
+						showTicketConfig: false
+					})
+				}}
+			>
+				<div className="modal-header text-truncate">
+					#{this.state.dialogData.id} {this.state.dialogData.subject}
+				</div>
+				<div className="modal-body p-2 px-3">
+					<div className="row g-3 align-items-center">
+						<div className="col-auto">
+							<label className="col-form-label" style={{ width: 120 }}>Max Dev/day</label>
+						</div>
+						<div className="col-auto">
+							<input type="text"
+								className="form-control form-control-sm"
+								value={_.get(_.find(this.state.sync_storage.wbs_data, { 'id': this.state.dialogData.id }), 'max_dev_in_day')}
+								onChange={e => {
+									const newData = _.map(_.cloneDeep(this.state.sync_storage.wbs_data), (o) => {
+										if (o.id == this.state.dialogData.id) {
+											_.set(o, `max_dev_in_day`, e.target.value)
+										}
+										return o
+									})
+									this.setState({
+										sync_storage: {
+											...this.state.sync_storage,
+											wbs_data: newData
+										}
+									})
+									this.auto_sync()
+								}}
+							/>
+						</div>
+						<div class="col-auto">
+							<span class="form-text">Default: {this.state.sync_storage.max_dev_in_day}</span>
+						</div>
+					</div>
+					<div className="row g-3 align-items-center">
+						<div className="col-auto">
+							<label className="col-form-label" style={{ width: 120 }}>Max QA/day</label>
+						</div>
+						<div className="col-auto">
+							<input type="text"
+								className="form-control form-control-sm"
+								value={_.get(_.find(this.state.sync_storage.wbs_data, { 'id': this.state.dialogData.id }), 'max_qa_in_day')}
+								onChange={e => {
+									const newData = _.map(_.cloneDeep(this.state.sync_storage.wbs_data), (o) => {
+										if (o.id == this.state.dialogData.id) {
+											_.set(o, `max_qa_in_day`, e.target.value)
+										}
+										return o
+									})
+									this.setState({
+										sync_storage: {
+											...this.state.sync_storage,
+											wbs_data: newData
+										}
+									})
+									this.auto_sync()
+								}}
+							/>
+						</div>
+						<div class="col-auto">
+							<span class="form-text">Default: {this.state.sync_storage.max_qa_in_day}</span>
+						</div>
+					</div>
+					<div className="modal-footer justify-content-end mt-3 pb-0">
+						<button type="button" className="btn btn-sm btn-primary btn-sm" onClick={e => {
+							this.setState({
+								showTicketConfig: false
+							})
+						}}>OK</button>
+					</div>
+				</div>
+			</Modal>
+		]
 	}
 
 	render() {
@@ -719,14 +1162,14 @@ class WBSPage extends React.PureComponent {
 							maxWidth: leftSideWidth,
 						}}>
 							{
-								this.renderWbsHeaderLeft()
+								this.renderHeaderLeft()
 							}
 						</div>
 						<ScrollSyncPane group="two">
 							<div className="col overflow-auto">
 								<div style={{ width: _.size(dateRange) * 28 }}>
 									{
-										this.renderWbsHeaderRight(dateRange, data_norm)
+										this.renderHeaderRight(dateRange, data_norm)
 									}
 								</div>
 							</div>
@@ -734,14 +1177,14 @@ class WBSPage extends React.PureComponent {
 					</div>
 
 					<div className="row"
-						style={{ height: 'calc(100% - 83px)' }}
+						style={{ height: 'calc(100% - 110px)' }}
 					>
 						<ScrollSyncPane group="one">
 							<div className="col overflow-auto h-100" style={{
 								maxWidth: leftSideWidth,
 							}}>
 								{
-									this.renderWbsDataLeft(wbs_data)
+									this.renderDataLeft(wbs_data)
 								}
 							</div>
 						</ScrollSyncPane>
@@ -749,221 +1192,15 @@ class WBSPage extends React.PureComponent {
 							<div className="col overflow-auto h-100">
 								<div style={{ width: _.size(dateRange) * 28 }}>
 									{
-										this.renderWbsDataRight(dateRange, wbs_data, data_norm)
+										this.renderDataRight(dateRange, wbs_data, data_norm)
 									}
 								</div>
 							</div>
 						</ScrollSyncPane>
 					</div>
-
-					<button
-						className="btn btn-lg btn-warning position-fixed bottom-0 start-0"
-						data-bs-toggle="offcanvas"
-						data-bs-target="#offcanvasExample"
-					>
-						<i className="bi bi-gear"></i>
-					</button>
-					<div className="offcanvas offcanvas-start" tabindex="-1" id="offcanvasExample" aria-labelledby="offcanvasExampleLabel">
-						<div className="offcanvas-header">
-							<h5 className="offcanvas-title" id="offcanvasExampleLabel">Setting</h5>
-							<button type="button" className="btn-close text-reset" data-bs-dismiss="offcanvas" aria-label="Close"></button>
-						</div>
-						<div className="offcanvas-body">
-							<div className="fs-6 mb-1">General</div>
-							<div>
-								<div className="row g-3 align-items-center">
-									<div className="col-auto">
-										<label className="col-form-label" style={{ width: 80 }}>Dev hours/day</label>
-									</div>
-									<div className="col-auto">
-										<input type="text"
-											className="form-control form-control-sm"
-											value={this.state.sync_storage.max_dev_hour_in_day}
-											onChange={e => {
-												this.setState({
-													sync_storage: {
-														...this.state.sync_storage,
-														max_dev_hour_in_day: e.target.value
-													}
-												})
-												this.auto_sync()
-											}}
-										/>
-									</div>
-								</div>
-								<div className="row g-3 align-items-center mt-1">
-									<div className="col-auto">
-										<label className="col-form-label" style={{ width: 80 }}>QA hours/day</label>
-									</div>
-									<div className="col-auto">
-										<input type="text"
-											className="form-control form-control-sm"
-											value={this.state.sync_storage.max_qa_hour_in_day}
-											onChange={e => {
-												this.setState({
-													sync_storage: {
-														...this.state.sync_storage,
-														max_qa_hour_in_day: e.target.value
-													}
-												})
-												this.auto_sync()
-											}}
-										/>
-									</div>
-								</div>
-							</div>
-
-							<div className="fs-6 mt-4 mb-1">Backup & Restore</div>
-
-							<div>
-								<button
-									className="btn btn-sm btn-primary"
-									onClick={e => {
-										fileDownloader(JSON.stringify(this.state.sync_storage), moment().format('YYYYMMDD') + '_wbs.json', 'application/json')
-									}}
-								>
-									Backup
-								</button>
-
-								<input id="selectFile" type="file" hidden onChange={e => {
-									const fileReader = new FileReader();
-									fileReader.readAsText(e.target.files[0], "UTF-8");
-									fileReader.onload = e => {
-										try {
-											this.setState({
-												sync_storage: JSON.parse(e.target.result)
-											})
-											alert("Restore successfully!")
-											this.auto_sync()
-										} catch (e) {
-											alert("System Error!")
-											console.error(e)
-										}
-									}
-								}} />
-								<button
-									className="btn btn-sm btn-info ms-4"
-									onClick={e => {
-										document.getElementById("selectFile").click()
-									}}
-								>
-									Restore
-								</button>
-							</div>
-
-							<div className="fs-6 mt-4 mb-1">
-								Members
-									<a
-									href="#add-member"
-									className="btn p-0 ms-2 text-primary"
-									title="Add new member"
-									onClick={e => {
-										e.preventDefault()
-										const members = this.state.sync_storage.members || []
-										members.push({
-											name: '',
-											team: 'dev'
-										})
-										this.setState({
-											sync_storage: {
-												...this.state.sync_storage,
-												members
-											}
-										})
-										this.auto_sync()
-									}}
-								><i className="bi bi-plus-circle-fill"></i></a>
-							</div>
-
-							<table className="table table-bordered table-sm table-hover caption-top">
-								<thead>
-									<tr>
-										<th width={20}>#.</th>
-										<th width={40}>Team</th>
-										<th>Name</th>
-										<th width={40}></th>
-									</tr>
-								</thead>
-								<tbody>
-									{
-										_.map(this.state.sync_storage.members || [], (it, idx) => {
-											return (
-												<tr>
-													<td>{idx + 1}</td>
-													<td>
-														<select
-															className="border"
-															value={it.team}
-															onChange={e => {
-																const members = _.map(_.cloneDeep(this.state.sync_storage.members), (o, oix) => {
-																	if (oix == idx) {
-																		o.team = e.target.value
-																	}
-																	return o
-																})
-																this.setState({
-																	sync_storage: {
-																		...this.state.sync_storage,
-																		members
-																	}
-																})
-																this.auto_sync()
-															}}>
-															<option value="dev">DEV</option>
-															<option value="qa">QA</option>
-														</select>
-													</td>
-													<td>
-														<input type="text"
-															className="text-input p-1"
-															value={it.name}
-															onChange={e => {
-																const members = _.map(_.cloneDeep(this.state.sync_storage.members), (o, oix) => {
-																	if (oix == idx) {
-																		o.name = e.target.value
-																	}
-																	return o
-																})
-																this.setState({
-																	sync_storage: {
-																		...this.state.sync_storage,
-																		members
-																	}
-																})
-																this.auto_sync()
-															}}
-														/>
-													</td>
-													<td className="text-center">
-														<button
-															className="btn btn-sm p-0 text-danger"
-															onClick={e => {
-																const members = []
-																_.map(this.state.sync_storage.members, (o, oix) => {
-																	if (oix !== idx) {
-																		members.push(o)
-																	}
-																})
-																this.setState({
-																	sync_storage: {
-																		...this.state.sync_storage,
-																		members
-																	}
-																})
-																this.auto_sync()
-															}}
-														>
-															<i className="bi bi-person-x"></i>
-														</button>
-													</td>
-												</tr>
-											)
-										})
-									}
-								</tbody>
-							</table>
-						</div>
-					</div>
+					{
+						this.renderSidebar()
+					}
 				</div>
 			</ScrollSync>
 		)

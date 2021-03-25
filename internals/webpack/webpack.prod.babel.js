@@ -16,7 +16,7 @@ module.exports = require('./webpack.base.babel')({
 	output: {
 		filename: '[name].[chunkhash].js',
 		chunkFilename: 'js/[name].[chunkhash].chunk.js',
-		publicPath: 'https://cdn.microworks.me/'
+		publicPath: config.publicPath
 	},
 
 	plugins: [
@@ -59,7 +59,7 @@ module.exports = require('./webpack.base.babel')({
 			output: {
 				comments: false,
 			},
-				exclude: [/\.min\.js$/gi] // skip pre-minified libs
+			exclude: [/\.min\.js$/gi] // skip pre-minified libs
 		}),
 		// new webpack.IgnorePlugin(/\.\/locale$/),
 		new webpack.NoEmitOnErrorsPlugin(),

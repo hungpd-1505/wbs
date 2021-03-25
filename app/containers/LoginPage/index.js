@@ -4,7 +4,6 @@ import { push } from 'react-router-redux';
 // Components
 import Confirm from 'components/Confirm';
 import { APILoading } from 'components/LoadingIndicator';
-import Meta from 'components/Header/Meta';
 
 // Redux
 import { connect } from 'react-redux';
@@ -90,10 +89,6 @@ class LoginPage extends React.PureComponent {
 	render() {
 		return (
 			<div className="login-page">
-				<Meta
-					title="Đăng nhập"
-					mobile
-				/>
 				<div className="login-box">
 					<div className="login-logo">
 						<a

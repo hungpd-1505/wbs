@@ -2,9 +2,6 @@ import React from 'react';
 import { Switch, Route, withRouter } from 'react-router-dom';
 
 
-import Header from 'components/Header';
-import Footer from 'components/Footer';
-
 import LoginPage from 'containers/LoginPage/Loadable';
 import NotFoundPage from 'containers/NotFoundPage/Loadable';
 import WBSPage from 'containers/WBSPage/Loadable';
@@ -48,14 +45,11 @@ class App extends React.Component {
 	render() {
 		const { auth } = this.props;
 
-		const pathname = _.get(this.props, 'location.pathname');
-		const USER_PLAN_CODE = _.toInteger(_.get(this.props, 'auth.plan', 1));
-
 		// LoggedIn
 		const routes = (
 			<section className="content">
 				<Switch>
-					<Route exact path="/" component={WBSPage} />
+					<Route path="/" component={WBSPage} />
 
 					{/* NotFound */}
 					<Route component={NotFoundPage} status={404} />
@@ -64,8 +58,7 @@ class App extends React.Component {
 		);
 
 		return [
-			<Header />,
-			routes,
+			routes
 		];
 	}
 }

@@ -5,7 +5,6 @@ export default {
 
   // Preprocess: deploy to server on root or subfolders: '/somepath/'
   publicPath: '/',
-  // serviceBaseURL: '/api/v1/' // service proxy url
-  baseURL: 'http://127.0.0.1',
+  serviceBaseURL: '/api/v1/', // service proxy url
   cryptoPasscode: 'XuHkbNw6Ic', // utils/crypto.js
 };

@@ -18,6 +18,18 @@
             height: 28px;
             max-height: 28px;
             line-height: 28px;
+            &.mid-line{
+                position: relative;
+                &::after{
+                    content: '';
+                    top: 50%;
+                    left: -1px;
+                    height: 2px;
+                    background: #0d6efd;
+                    width: calc(100% + 2px);
+                    position: absolute;
+                }
+            }
         }
         & + .wbs_row {
             margin-top: -1px;
@@ -33,6 +45,7 @@
         border: 0;
         outline: none;
         padding: 4px;
+        width: 120px;
     }
     .btn-up{
         margin-right: 2px;
@@ -68,5 +81,12 @@
     }
     .text-sm{
         font-size: 0.6em;
+    }
+    .select{
+        outline: none;
+        background: transparent;
+        &:focus{
+            outline: none;
+        }
     }
 }

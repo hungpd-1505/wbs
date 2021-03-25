@@ -12,7 +12,7 @@ const ZP = {
 
   // Path for deploying to server
   // publicPath: '/',
-  publicPath: '/',
+  publicPath: '/wbs/',
 
   /**
    * The DLL Plugin provides a dramatic speed increase to webpack build and hot module reloading
@@ -48,7 +48,7 @@ const ZP = {
       path: resolve('../node_modules/zp-dlls')
     },
 
-    entry (pkg) {
+    entry(pkg) {
       const dependencyNames = Object.keys(pkg.dependencies)
       const exclude = pkg.dllPlugin.exclude || ZP.dllPlugin.defaults.exclude
       const include = pkg.dllPlugin.include || ZP.dllPlugin.defaults.include
