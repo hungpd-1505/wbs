@@ -21,11 +21,14 @@ import moment from 'moment'
 import fileDownloader from 'utils/fileDownloader'
 
 class WBSPage extends React.PureComponent {
+
 	constructor(props) {
 		super(props)
 
 		this.state = {
 			showTicketConfig: false,
+			showTeamsizeByDateConfigModal: false,
+			showTeamsizeByDate: null,
 			dialogData: {},
 			costItem: [
 				{
@@ -93,6 +96,7 @@ class WBSPage extends React.PureComponent {
 				toDate: moment().add(1, 'months').format("YYYY-MM-DD"),
 				totalDev: 18,
 				totalQa: 5.5,
+				teamsizeByDate: {},
 				wbs_data: [
 					{
 						id: 0,
@@ -164,8 +168,8 @@ class WBSPage extends React.PureComponent {
 			const dateObj = moment(d)
 
 			let { totalDev, totalQa } = this.state.sync_storage
-			totalDev = totalDev * 8
-			totalQa = totalQa * 8
+			totalDev = (_.get(this.state.sync_storage, `teamsizeByDate.${d}.dev`, totalDev) || totalDev) * 8
+			totalQa = (_.get(this.state.sync_storage, `teamsizeByDate.${d}.qa`, totalQa) || totalQa) * 8
 
 			if (!this.isHoliday(dateObj)) {
 				const data = {}
@@ -474,15 +478,27 @@ class WBSPage extends React.PureComponent {
 
 						const classes = ['col', 'wbs_col', 'border']
 
-						if (this.isToday(dateObj)) {
-							classes.push('bg-warning')
-						} else if (this.isHoliday(dateObj)) {
+						if (this.isHoliday(dateObj)) {
 							classes.push('bg-light')
+						} else {
+							classes.push('config-onfly')
+							if (this.isToday(dateObj)) {
+								classes.push('bg-warning')
+							}
 						}
 
-						const cost = _.sumBy(_.values(_.get(data_norm, `${d}`, [])), (o) => (_.toNumber(o.mh.implement.value) + _.toNumber(o.mh.fix_bug.value)) / 8)
+						const cost = _.round(_.sumBy(_.values(_.get(data_norm, `${d}`, [])), (o) => (_.toNumber(o.mh.implement.value) + _.toNumber(o.mh.fix_bug.value)) / 8), 1)
 						return (
-							<div className={classes.join(' ')}>{cost || ''}</div>
+							<div className={classes.join(' ')}
+								onClick={e => {
+									this.setState({
+										showTeamsizeByDateConfigModal: true,
+										showTeamsizeByDate: d
+									})
+								}}
+							>
+								{cost || ''}
+							</div>
 						)
 					})
 				}
@@ -495,15 +511,27 @@ class WBSPage extends React.PureComponent {
 
 						const classes = ['col', 'wbs_col', 'border']
 
-						if (this.isToday(dateObj)) {
-							classes.push('bg-warning')
-						} else if (this.isHoliday(dateObj)) {
+						if (this.isHoliday(dateObj)) {
 							classes.push('bg-light')
+						} else {
+							classes.push('config-onfly')
+							if (this.isToday(dateObj)) {
+								classes.push('bg-warning')
+							}
 						}
 
-						const cost = _.sumBy(_.values(_.get(data_norm, `${d}`, [])), (o) => (_.toNumber(o.mh.create_test_case.value) + _.toNumber(o.mh.execute_test.value)) / 8)
+						const cost = _.round(_.sumBy(_.values(_.get(data_norm, `${d}`, [])), (o) => (_.toNumber(o.mh.create_test_case.value) + _.toNumber(o.mh.execute_test.value)) / 8), 1)
 						return (
-							<div className={classes.join(' ')}>{cost || ''}</div>
+							<div className={classes.join(' ')}
+								onClick={e => {
+									this.setState({
+										showTeamsizeByDateConfigModal: true,
+										showTeamsizeByDate: d
+									})
+								}}
+							>
+								{cost || ''}
+							</div>
 						)
 					})
 				}
@@ -548,7 +576,9 @@ class WBSPage extends React.PureComponent {
 						}
 
 						return (
-							<div className={classes.join(' ')}>{dateObj.format('DD')}</div>
+							<div className={classes.join(' ')}>
+								{dateObj.format('DD')}
+							</div>
 						)
 					})
 				}
@@ -1140,6 +1170,92 @@ class WBSPage extends React.PureComponent {
 		]
 	}
 
+	renderTeamsizeByDateConfigModal() {
+		return this.state.showTeamsizeByDate ? (
+			<Modal
+				className={'modal-dialog'}
+				shouldCloseOnOverlayClick={false}
+				isOpen={this.state.showTeamsizeByDateConfigModal}
+				onRequestClose={() => {
+					this.setState({
+						showTeamsizeByDateConfigModal: false
+					})
+				}}
+			>
+				<div className="modal-header text-truncate">
+					Config Team size By Date: {this.state.showTeamsizeByDate}
+				</div>
+				<div className="modal-body p-2 px-3">
+					<div className="row g-3 align-items-center">
+						<div className="col-auto">
+							<label className="col-form-label" style={{ width: 120 }}>Total Dev/day</label>
+						</div>
+						<div className="col-auto">
+							<input type="text"
+								className="form-control form-control-sm"
+								value={_.get(this.state.sync_storage.teamsizeByDate, `${this.state.showTeamsizeByDate}.dev`)}
+								onChange={e => {
+									const newData = _.cloneDeep(this.state.sync_storage.teamsizeByDate) || {}
+									newData[this.state.showTeamsizeByDate] = {
+										dev: e.target.value,
+										qa: _.get(newData, `${this.state.showTeamsizeByDate}.qa`)
+									}
+
+									this.setState({
+										sync_storage: {
+											...this.state.sync_storage,
+											teamsizeByDate: newData
+										}
+									})
+									this.auto_sync()
+								}}
+							/>
+						</div>
+						<div class="col-auto">
+							<span class="form-text">Default: {this.state.sync_storage.totalDev}</span>
+						</div>
+					</div>
+					<div className="row g-3 align-items-center">
+						<div className="col-auto">
+							<label className="col-form-label" style={{ width: 120 }}>Total QA/day</label>
+						</div>
+						<div className="col-auto">
+							<input type="text"
+								className="form-control form-control-sm"
+								value={_.get(this.state.sync_storage.teamsizeByDate, `${this.state.showTeamsizeByDate}.qa`)}
+								onChange={e => {
+									const newData = _.cloneDeep(this.state.sync_storage.teamsizeByDate) || {}
+									newData[this.state.showTeamsizeByDate] = {
+										dev: _.get(newData, `${this.state.showTeamsizeByDate}.dev`),
+										qa: e.target.value,
+									}
+
+									this.setState({
+										sync_storage: {
+											...this.state.sync_storage,
+											teamsizeByDate: newData
+										}
+									})
+									this.auto_sync()
+								}}
+							/>
+						</div>
+						<div class="col-auto">
+							<span class="form-text">Default: {this.state.sync_storage.totalQa}</span>
+						</div>
+					</div>
+					<div className="modal-footer justify-content-end mt-3 pb-0">
+						<button type="button" className="btn btn-sm btn-primary btn-sm" onClick={e => {
+							this.setState({
+								showTeamsizeByDateConfigModal: false
+							})
+						}}>OK</button>
+					</div>
+				</div>
+			</Modal>
+		) : null
+	}
+
 	render() {
 		const fromDate = moment(this.state.sync_storage.fromDate).subtract(1, 'days')
 		const toDate = moment(this.state.sync_storage.toDate)
@@ -1200,6 +1316,9 @@ class WBSPage extends React.PureComponent {
 					</div>
 					{
 						this.renderSidebar()
+					}
+					{
+						this.renderTeamsizeByDateConfigModal()
 					}
 				</div>
 			</ScrollSync>
